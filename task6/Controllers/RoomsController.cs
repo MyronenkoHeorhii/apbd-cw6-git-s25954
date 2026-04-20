@@ -53,18 +53,75 @@ public class RoomsController : ControllerBase
             IsActive = false
         }
     };
-
+    
     [HttpGet]
-    public IActionResult GetAll()
+    public IActionResult GetAll(
+        [FromQuery] int? minCapacity,
+        [FromQuery] bool? hasProjector,
+        [FromQuery] bool? activeOnly)
     {
-        return Ok(Rooms);
-    }
+        var query = Rooms.AsQueryable();
 
-    [HttpGet("{id}")]
-    public IActionResult GetById(int id)
+        if (minCapacity.HasValue)
+            query = query.Where(r => r.Capacity >= minCapacity.Value);
+
+        if (hasProjector.HasValue)
+            query = query.Where(r => r.HasProjector == hasProjector.Value);
+
+        if (activeOnly.HasValue && activeOnly.Value)
+            query = query.Where(r => r.IsActive);
+
+        return Ok(query.ToList());
+    }
+    
+    [HttpGet("{id:int}")]
+    public ActionResult<Room> GetById(int id)
     {
         var room = Rooms.FirstOrDefault(r => r.Id == id);
         if (room == null) return NotFound();
+        return Ok(room);
+    }
+    
+    [HttpGet("building/{buildingCode}")]
+    public IActionResult GetByBuilding(string buildingCode)
+    {
+        var rooms = Rooms
+            .Where(r => r.BuildingCode.Equals(buildingCode, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return Ok(rooms);
+    }
+    
+    [HttpPost]
+    public IActionResult Create(Room room)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        room.Id = Rooms.Max(r => r.Id) + 1;
+        Rooms.Add(room);
+
+        return CreatedAtAction(nameof(GetById), new { id = room.Id }, room);
+    }
+    
+    [HttpPut("{id}")]
+    public IActionResult Update(int id, Room updated)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var room = Rooms.FirstOrDefault(r => r.Id == id);
+        
+        if (room == null)
+        {
+            return NotFound();
+        }
+
+        room.Name = updated.Name;
+        room.BuildingCode = updated.BuildingCode;
+        room.Floor = updated.Floor;
+        room.Capacity = updated.Capacity;
+        room.HasProjector = updated.HasProjector;
+        room.IsActive = updated.IsActive;
+
         return Ok(room);
     }
 }
